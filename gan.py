@@ -5,13 +5,11 @@ from tqdm import tqdm # this is used for progress bars
 import numpy as np
 import torch.nn as nn
 import torch
-import torchvision
-from torchvision.utils import save_image
 
-img_size = 256
-latent_dim = 100
+img_size = 28
+latent_dim = 64
 batch_size = 100
-MAX_EPOCH = 5000
+MAX_EPOCH = 100
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("Device: ", device)
 
@@ -26,13 +24,13 @@ class Generator(nn.Module):
 
         self.model = nn.Sequential(
             nn.Linear(latent_dim, 128),
-            nn.ReLU(),
-            nn.Linear(128, 512),
-            nn.ReLU(),
-            nn.Linear(512, 2048),
-            nn.ReLU(),
-            nn.Linear(2048, img_size * img_size),
-            nn.Tanh()
+            nn.Sigmoid(),
+            nn.Linear(128, 256),
+            nn.Sigmoid(),
+            nn.Linear(256, 512),
+            nn.Sigmoid(),
+            nn.Linear(512, img_size * img_size),
+            nn.Sigmoid()
         )
     
     def forward(self, x):
@@ -50,9 +48,7 @@ class Discriminator(nn.Module):
 
         self.model = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(img_size * img_size, 1024),
-            nn.Sigmoid(),
-            nn.Linear(1024, 512),
+            nn.Linear(img_size * img_size, 512),
             nn.Sigmoid(),
             nn.Linear(512, 256),
             nn.Sigmoid(),
@@ -68,10 +64,10 @@ class Discriminator(nn.Module):
 
 def dataLoader(images):
     """
-        Function is responsible for reading image files from data/cats directory
+        Function is responsible for reading image files from data/mnist/trainingSet/trainingSet/0 directory
         and resizing them to 512 x 512 so they can be fed into our GAN for training.
     """
-    for path, dirs, filenames in os.walk('data/cats'):
+    for path, dirs, filenames in os.walk('data/mnist/trainingSet/trainingSet/0'):
         for filename in tqdm(filenames):
             img = cv2.imread(f"{path}/{filename}", 0)
             img = cv2.resize(img, (img_size, img_size))
@@ -79,8 +75,8 @@ def dataLoader(images):
 
 def train(generator, discriminator, images):
     # optimizers that we will use
-    generater_optimizer = torch.optim.Adam(generator.parameters(), lr=0.0002, betas=(0.5, 0.999))
-    discriminator_optimizer = torch.optim.Adam(discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999))
+    generater_optimizer = torch.optim.Adam(generator.parameters(), lr=0.0002)
+    discriminator_optimizer = torch.optim.Adam(discriminator.parameters(), lr=0.0002)
 
     # the loss function
     adv_loss = nn.BCELoss()
@@ -89,11 +85,11 @@ def train(generator, discriminator, images):
     N = images.shape[0]
 
     for epoch in range(MAX_EPOCH):
-        z_mini_batch = torch.Tensor(np.random.normal(0, 1, size=(batch_size, latent_dim))) # size (batch_size x 100)
+        z_mini_batch = torch.Tensor(np.random.normal(0, 1, size=(batch_size, latent_dim))) # size (batch_size x laten_dim)
         z_mini_batch = z_mini_batch.to(device)
         
         random_choice = np.random.choice(np.arange(N), size=batch_size) # size (batch_size x 1)
-        real_images = torch.Tensor(np.array([images[choice] for choice in random_choice])) # size (batch_size x img_size x img_size)
+        real_images = torch.Tensor(np.array([images[choice] for choice in random_choice])) # size (batch_size x img_size x img_size x channels)
         real_images = real_images.to(device)
               
 
@@ -105,7 +101,7 @@ def train(generator, discriminator, images):
 
         # train the discriminator
         discriminator_optimizer.zero_grad()
-        fake_images = generator(z_mini_batch) # size (batch_size x img_size x img_size)
+        fake_images = generator(z_mini_batch) # size (batch_size x img_size x img_size x channels)
         real_loss = adv_loss(discriminator(real_images), real_data_labels)
         fake_loss = adv_loss(discriminator(fake_images), fake_data_labels)
         discriminator_loss = (real_loss + fake_loss) / 2
@@ -117,10 +113,10 @@ def train(generator, discriminator, images):
         # train the generator
         generator.zero_grad()
 
-        z_mini_batch = torch.Tensor(np.random.normal(0, 1, size=(batch_size, latent_dim))) # size (batch_size x 100)
+        z_mini_batch = torch.Tensor(np.random.normal(0, 1, size=(batch_size, latent_dim))) # size (batch_size x laten_dim)
         z_mini_batch = z_mini_batch.to(device)
 
-        fake_images = generator(z_mini_batch) # size (batch_size x img_size x img_size)
+        fake_images = generator(z_mini_batch) # size (batch_size x img_size x img_size x channels)
 
         """ we pass real data labels here since we want the discriminator to identify these images as real """
         generator_loss = adv_loss(discriminator(fake_images), real_data_labels)
@@ -132,7 +128,7 @@ def train(generator, discriminator, images):
         print(f"Epoch: {epoch + 1} / {MAX_EPOCH}, Generator Loss: {generator_loss} , Discriminator Loss: {discriminator_loss}")
 
         if epoch % 5 == 0:
-            save_image(fake_images[0] * 255, f"./samples/sample_epoch_{epoch}.jpg", nrow=4)
+            cv2.imwrite(f"./samples/0/sample_epoch_{epoch}.jpg", fake_images[0].cpu().detach().numpy() * 255)
 
 def main():
     images = []
