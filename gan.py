@@ -6,6 +6,8 @@ import numpy as np
 import torch.nn as nn
 import torch
 import argparse
+import imageio
+import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", default=100, type=int, help="Number of epochs to run the network for")
@@ -75,6 +77,19 @@ def dataLoader(images):
         for filename in tqdm(filenames):
             img = cv2.imread(f"{path}/{filename}", 0)
             images.append(img)
+
+def gifMaker():
+    """ Function makes the output from the training of GAN into a gif for easy result viewing """
+    if not os.path.isdir("gifs"):
+        os.mkdir("gifs")
+    
+    gif = []
+    path = f"samples/{options.digit}"
+
+    for filename in range(options.epochs):
+            gif.append(imageio.imread(f"{path}/sample_epoch_{filename}.jpg"))
+    
+    imageio.mimsave(f"gifs/{options.digit}.gif", gif, fps=24)
 
 def train(generator, discriminator, images):
     # optimizers that we will use
@@ -156,6 +171,8 @@ def main():
         os.mkdir(f"samples/{options.digit}")
 
     train(generator, discriminator, images)
+
+    gifMaker()
 
 if __name__ == "__main__":
     main()
