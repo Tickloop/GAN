@@ -15,6 +15,8 @@ parser.add_argument("--latent_dim", default=64, type=int, help="The size of the 
 parser.add_argument("--batch_size", default=100, type=int, help="Size of mini batch that is fed into one step of network training")
 parser.add_argument("--img_size", default=28, type=int, help="Size of generated images")
 parser.add_argument("--digit", default=0, type=int, help="MNIST digit to be generated")
+parser.add_argument("--no_gif", default=True, action='store_false', dest='gif', help="Whether to make a gif over number of epochs or not")
+parser.add_argument("--no_samples", default=True, action='store_false', dest='samples', help="Whether to generate a sample from each batch from a training epoch")
 options = parser.parse_args()
 print("Selected arguments to run: ")
 print(options)
@@ -83,13 +85,28 @@ def gifMaker():
     if not os.path.isdir("gifs"):
         os.mkdir("gifs")
     
-    gif = []
-    path = f"samples/{options.digit}"
+    if options.samples:
+        if not os.path.isdir("gifs"):
+            os.mkdir("gifs")
+        
+        gif = []
+        path = f"samples/{options.digit}"
 
-    for filename in range(options.epochs):
-            gif.append(imageio.imread(f"{path}/sample_epoch_{filename}.jpg"))
+        for filename in range(options.epochs):
+                gif.append(imageio.imread(f"{path}/sample_epoch_{filename}.jpg"))
+        
+        imageio.mimsave(f"gifs/{options.digit}.gif", gif, fps=24)
+
+
+def writeImages(batch, epoch):
+    """
+        Function to make our output for each epoch more meaningful as well as better represented
+    """
+    if options.samples:
+        images = batch.cpu().detach().numpy() * 255
     
-    imageio.mimsave(f"gifs/{options.digit}.gif", gif, fps=24)
+        # writing this for sanity check
+        cv2.imwrite(f"./samples/{options.digit}/sample_epoch_{epoch}.jpg", images[0])
 
 def train(generator, discriminator, images):
     # optimizers that we will use
@@ -145,7 +162,7 @@ def train(generator, discriminator, images):
 
         print(f"Epoch: {epoch + 1} / {options.epochs}, Generator Loss: {generator_loss} , Discriminator Loss: {discriminator_loss}")
 
-        cv2.imwrite(f"./samples/{options.digit}/sample_epoch_{epoch}.jpg", fake_images[0].cpu().detach().numpy() * 255)
+        writeImages(fake_images, epoch)
         
 
 def main():
@@ -163,16 +180,18 @@ def main():
     generator.to(device)
     discriminator.to(device)
 
-    # ensure that there is a place to store generated samples
-    if not os.path.isdir("samples"):
-        os.mkdir("samples")
-    
-    if not os.path.isdir(f"samples/{options.digit}"):
-        os.mkdir(f"samples/{options.digit}")
+    # ensure that there is a place to store generated samples and plots
+    if options.samples:
+        if not os.path.isdir("samples"):
+            os.mkdir("samples")
+        
+        if not os.path.isdir(f"samples/{options.digit}"):
+            os.mkdir(f"samples/{options.digit}")
 
     train(generator, discriminator, images)
 
-    gifMaker()
+    if options.gif:
+        gifMaker()
 
 if __name__ == "__main__":
     main()
